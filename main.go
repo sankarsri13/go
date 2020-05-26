@@ -1,66 +1,61 @@
 package main
 
-import "fmt"
-//struct
-type Book struct {
-	Name string
-	isbn int
-	Author_name string
-}
-//method
-func add(x int,y int) int   {
-	return x+y
-}
-func main() {
-	//variables
-	var1:=10
-	fmt.Println(var1)
-	var var2 int=4
-	fmt.Println(var1+var2)
-	//pointer
+import (
+	"encoding/json"
+	"log"
+	"net/http"
 	
-	p:= & var2
-	fmt.Println(p,*p)
-
-	//loop
-	for i:=0;i<=10;i++{
-		fmt.Println("%d\n",i)
-	}
-
-	//array,slice
-	var my_slice = []int{1,2,3,4}
-	fmt.Println(my_slice)
-	my_slice=append(my_slice,90)
-	fmt.Println(my_slice)
-	//if
-	age:=18
-	if age>=18{
-		fmt.Println("Eligible to vote")
-	}else {
-		fmt.Println("Not Eligible to vote")
-	}
-	//struct
+	"github.com/gorilla/mux"
+)
+type Book struct{
+	ID string `json:"id"`
+	Isbn string `json:"isbn"`
+	Name string `json:"name"`
+	Author string `json:"author"` 
+}
+var books []Book
+func getAllBooks(w http.ResponseWriter, r *http.Request)  {
+	w.Header().Set("Content-Type","application/json")
+	json.NewEncoder(w).Encode(books)
+	
+}
+func addBook(w http.ResponseWriter, r *http.Request)  {
+	w.Header().Set("Content-Type","application/json")
 	var book Book
-	book.Name="Wings of Fire"
-	book.isbn=1312
-	book.Author_name="APJ Abdul Kalam"
-	fmt.Println(book.Name,book.isbn,book.Author_name)
-	var book2 = Book{Name:"Narcos",isbn:1211,Author_name:"Pablo Escobar"}
-	fmt.Println(book2)
-	//range
-    a := [10]int{1,2,3,4,5,6,7,8,9,10}
-	for index,values:=range a{
-		fmt.Printf("a[%d]:%d\n",index,values)
+	_ = json.NewDecoder(r.Body).Decode(&book)
+	books = append(books,book)
+	json.NewEncoder(w).Encode(book)
+
+}
+func getBook(w http.ResponseWriter, r *http.Request)  {
+	w.Header().Set("Content-Type","application/json")
+	params:=mux.Vars(r)
+	for _,item:=range books{
+		if(item.ID==params["id"]){
+			json.NewEncoder(w).Encode(item)
+			return
+		}
 	}
-	//map
-	m:=make(map[int]string)
-	m[1] = "One"
-	m[2] = "Two"
-	m[3] = "Three"
-	m[4] = "Four"
-	m[5] = "Five"
-	fmt.Println(m[4])
+	json.NewEncoder(w).Encode(nil)
 	
-	//add
-	fmt.Println(add(1,3))
+}
+func deleteBook(w http.ResponseWriter, r *http.Request)  {
+	w.Header().Set("Content-Type","application/json")
+	params:=mux.Vars(r)
+	for index,item:=range books{
+		if(item.ID==params["id"]){
+			books=append(books[:index],books[index+1:]...)
+		}
+	}
+json.NewEncoder(w).Encode(books)
+	
+}
+func main()  {
+	r:= mux.NewRouter()
+	books=append(books,Book{ID:"1",Isbn:"1234",Name:"Wings of fire",Author:"Abdul Kalam"})
+	r.HandleFunc("/api/books",getAllBooks).Methods("GET")
+	r.HandleFunc("/api/book/{id}",getBook).Methods("GET")
+	r.HandleFunc("/api/book/{id}",deleteBook).Methods("DELETE")
+	r.HandleFunc("/api/books",addBook).Methods("POST")
+	log.Fatal(http.ListenAndServe(":8082",r))
 }
