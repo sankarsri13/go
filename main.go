@@ -1,66 +1,142 @@
 package main
 
-import "fmt"
-//struct
-type Book struct {
-	Name string
-	isbn int
-	Author_name string
+import (
+	"context"
+	"encoding/json"
+	"log"
+	"net/http"
+    
+	"github.com/gorilla/mux"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"github.com/sankarsri13/go_rest_mongo/helper"
+	"github.com/sankarsri13/go_rest_mongo/models"
+)
+func getBooks(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+
+	var books []models.Book
+
+	
+	collection := helper.ConnectDB()
+
+	
+	cur, err := collection.Find(context.TODO(), bson.M{})
+
+	if err != nil {
+		helper.GetError(err, w)
+		return
+	}
+
+	
+	defer cur.Close(context.TODO())
+
+	for cur.Next(context.TODO()) {
+
+		
+		var book models.Book
+		
+		err := cur.Decode(&book) 
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		
+		books = append(books, book)
+	}
+
+	if err := cur.Err(); err != nil {
+		log.Fatal(err)
+	}
+
+	json.NewEncoder(w).Encode(books) 
 }
-//method
-func add(x int,y int) int   {
-	return x+y
+func getBook(w http.ResponseWriter, r *http.Request) {
+	
+	w.Header().Set("Content-Type", "application/json")
+
+	var book models.Book
+	
+	var params = mux.Vars(r)
+
+	
+	id, _ := primitive.ObjectIDFromHex(params["id"])
+
+	collection := helper.ConnectDB()
+
+	
+	filter := bson.M{"_id": id}
+	err := collection.FindOne(context.TODO(), filter).Decode(&book)
+
+	if err != nil {
+		helper.GetError(err, w)
+		return
+	}
+
+	json.NewEncoder(w).Encode(book)
 }
+func createBook(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	var book models.Book
+
+	
+	_ = json.NewDecoder(r.Body).Decode(&book)
+
+	
+	collection := helper.ConnectDB()
+
+	
+	result, err := collection.InsertOne(context.TODO(), book)
+
+	if err != nil {
+		helper.GetError(err, w)
+		return
+	}
+
+	json.NewEncoder(w).Encode(result)
+}
+func deleteBook(w http.ResponseWriter, r *http.Request) {
+	
+	w.Header().Set("Content-Type", "application/json")
+
+	
+	var params = mux.Vars(r)
+
+	
+	id, err := primitive.ObjectIDFromHex(params["id"])
+
+	collection := helper.ConnectDB()
+
+	
+	filter := bson.M{"_id": id}
+
+	deleteResult, err := collection.DeleteOne(context.TODO(), filter)
+
+	if err != nil {
+		helper.GetError(err, w)
+		return
+	}
+
+	json.NewEncoder(w).Encode(deleteResult)
+}
+
 func main() {
-	//variables
-	var1:=10
-	fmt.Println(var1)
-	var var2 int=4
-	fmt.Println(var1+var2)
-	//pointer
 	
-	p:= & var2
-	fmt.Println(p,*p)
+	r := mux.NewRouter()
 
-	//loop
-	for i:=0;i<=10;i++{
-		fmt.Println("%d\n",i)
-	}
-
-	//array,slice
-	var my_slice = []int{1,2,3,4}
-	fmt.Println(my_slice)
-	my_slice=append(my_slice,90)
-	fmt.Println(my_slice)
-	//if
-	age:=18
-	if age>=18{
-		fmt.Println("Eligible to vote")
-	}else {
-		fmt.Println("Not Eligible to vote")
-	}
-	//struct
-	var book Book
-	book.Name="Wings of Fire"
-	book.isbn=1312
-	book.Author_name="APJ Abdul Kalam"
-	fmt.Println(book.Name,book.isbn,book.Author_name)
-	var book2 = Book{Name:"Narcos",isbn:1211,Author_name:"Pablo Escobar"}
-	fmt.Println(book2)
-	//range
-    a := [10]int{1,2,3,4,5,6,7,8,9,10}
-	for index,values:=range a{
-		fmt.Printf("a[%d]:%d\n",index,values)
-	}
-	//map
-	m:=make(map[int]string)
-	m[1] = "One"
-	m[2] = "Two"
-	m[3] = "Three"
-	m[4] = "Four"
-	m[5] = "Five"
-	fmt.Println(m[4])
+  	
+	r.HandleFunc("/api/books", getBooks).Methods("GET")
+	r.HandleFunc("/api/books/{id}", getBook).Methods("GET")
+	r.HandleFunc("/api/books", createBook).Methods("POST")
 	
-	//add
-	fmt.Println(add(1,3))
+	r.HandleFunc("/api/books/{id}", deleteBook).Methods("DELETE")
+
+
+	log.Fatal(http.ListenAndServe(":8008", r))
+
 }
+
+
+  
