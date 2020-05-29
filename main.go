@@ -1,66 +1,146 @@
 package main
 
-import "fmt"
-//struct
-type Book struct {
-	Name string
-	isbn int
-	Author_name string
-}
-//method
-func add(x int,y int) int   {
-	return x+y
-}
-func main() {
-	//variables
-	var1:=10
-	fmt.Println(var1)
-	var var2 int=4
-	fmt.Println(var1+var2)
-	//pointer
+import (
 	
-	p:= & var2
-	fmt.Println(p,*p)
+	"log"
+	"encoding/json"
+	"database/sql"
+	"net/http"
+	"github.com/gorilla/mux"
+	"fmt"
+	_ "github.com/lib/pq"
+)
+const (
+	host     = "localhost"
+	port     = 5435
+	user     = "postgres"
+	password = "vijaysri13"
+	dbname   = "react-go"
+  )
+type City struct {
+	ID int `json:"id"`
+	Name string `json:"name"`
+	URL string `json:"url"`
+}
+type Hotel struct {
+	ID int 
+	Name string 
+	City_id int
+	Hotel_url string
+	Parking bool
+	Swimming bool
+	Televison bool
+	Gym bool
+	Price int
+	Star int
+	Rating int
+}
+var db *sql.DB
+var err error
+func connectDatabase() *sql.DB {
+	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
+    "password=%s dbname=%s sslmode=disable",
+    host, port, user, password, dbname)
+  db, err = sql.Open("postgres", psqlInfo)
+  if err != nil {
+    panic(err)
+  }
+  
+  err = db.Ping()
+  if err != nil {
+    panic(err)
+  }
 
-	//loop
-	for i:=0;i<=10;i++{
-		fmt.Println("%d\n",i)
-	}
-
-	//array,slice
-	var my_slice = []int{1,2,3,4}
-	fmt.Println(my_slice)
-	my_slice=append(my_slice,90)
-	fmt.Println(my_slice)
-	//if
-	age:=18
-	if age>=18{
-		fmt.Println("Eligible to vote")
-	}else {
-		fmt.Println("Not Eligible to vote")
-	}
-	//struct
-	var book Book
-	book.Name="Wings of Fire"
-	book.isbn=1312
-	book.Author_name="APJ Abdul Kalam"
-	fmt.Println(book.Name,book.isbn,book.Author_name)
-	var book2 = Book{Name:"Narcos",isbn:1211,Author_name:"Pablo Escobar"}
-	fmt.Println(book2)
-	//range
-    a := [10]int{1,2,3,4,5,6,7,8,9,10}
-	for index,values:=range a{
-		fmt.Printf("a[%d]:%d\n",index,values)
-	}
-	//map
-	m:=make(map[int]string)
-	m[1] = "One"
-	m[2] = "Two"
-	m[3] = "Three"
-	m[4] = "Four"
-	m[5] = "Five"
-	fmt.Println(m[4])
+  fmt.Println("Successfully connected!")
+  fmt.Printf("%T",err)
+ return db
+}
+func getAllCities(w http.ResponseWriter, r *http.Request) {
 	
-	//add
-	fmt.Println(add(1,3))
+
+  //getting all cities name and thumbnail
+  sqlStatement := `SELECT * FROM city;`
+  rows,err2:=db.Query(sqlStatement)
+  if err2!=nil{
+	  panic(err2)
+  }
+
+
+	var city []City
+
+	defer rows.Close()
+  		for rows.Next() {
+    
+
+		var temp City
+    	err := rows.Scan(&temp.ID, &temp.Name, &temp.URL)
+    	if err != nil {
+      
+      	panic(err)
+    	}
+    	city=append(city,temp)
+  }
+
+  err:= rows.Err()
+  if err != nil {
+    panic(err)
+  }
+  w.Header().Set("Content-Type","application/json")
+  json.NewEncoder(w).Encode(city)
+  
+}
+func getHotelsInCity(w http.ResponseWriter, r *http.Request)  {
+	params:=mux.Vars(r)
+	// fmt.Printf("%s",params["id"])
+	//getting hotels in city
+	sqlStatement := `SELECT * FROM hotel where city_id=$1;`
+  rows,err2:=db.Query(sqlStatement,params["id"])
+  if err2!=nil{
+	  panic(err2)
+  }
+
+
+	var hotel []Hotel
+
+	defer rows.Close()
+  		for rows.Next() {
+    
+
+		var temp Hotel
+    	err := rows.Scan(&temp.ID,&temp.Name,&temp.City_id,&temp.Hotel_url,&temp.Parking,&temp.Swimming,&temp.Televison,&temp.Gym,&temp.Price,&temp.Star,&temp.Rating)
+    	if err != nil {
+      
+      	panic(err)
+    	}
+    	hotel=append(hotel,temp)
+  }
+
+  err:= rows.Err()
+  if err != nil {
+    panic(err)
+  }
+  w.Header().Set("Content-Type","application/json")
+  json.NewEncoder(w).Encode(hotel)
+  
+}
+func getHotelDetails(w http.ResponseWriter, r *http.Request)  {
+	params:=mux.Vars(r)
+	//getting single hotel-specific detail
+	sqlStatement:=`SELECT * FROM hotel where hotel_id=$1`
+	row:=db.QueryRow(sqlStatement,params["id"])
+	var hotel Hotel
+	err3:=row.Scan(&hotel.ID,&hotel.Name,&hotel.City_id,&hotel.Hotel_url,&hotel.Parking,&hotel.Swimming,&hotel.Televison,&hotel.Gym,&hotel.Price,&hotel.Star,&hotel.Rating)
+	if err3!=nil{
+		panic(err3)
+	}
+	w.Header().Set("Content-Type","application/json")
+  	json.NewEncoder(w).Encode(hotel)
+}
+func main()  {
+	db=connectDatabase()
+	r:= mux.NewRouter()
+	r.HandleFunc("/api/cities/",getAllCities).Methods("GET")
+	r.HandleFunc("/api/cities/{id}",getHotelsInCity).Methods("GET")
+	r.HandleFunc("/api/hotel/{id}",getHotelDetails).Methods("GET")
+	log.Fatal(http.ListenAndServe(":8098",r))
 }
